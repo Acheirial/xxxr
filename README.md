@@ -53,6 +53,10 @@ flowchart LR
 | Freedom 出站 | ✅ | 直连目标 |
 | Blackhole 出站 | ✅ | 直接关闭连接（`response` 字段忽略） |
 | VLESS 出站 | ✅ TCP | `vnext` 仅取第一个 server/user |
+| Trojan 入站 | ✅ CONNECT | SHA-224(password) 认证 + CRLF 请求头；UDP 与 `fallbacks` 未实现 |
+| Trojan 出站 | ✅ | `servers[]` 轮询；TLS 由 `streamSettings` 决定 |
+| VMess 入站 | ✅ AEAD (TCP) | `aes-128-gcm` / `chacha20-poly1305`；含 AuthID 时间窗与重放过滤 |
+| VMess 出站 | ✅ AEAD (TCP) | `vnext` 取第一个；支持 `AuthenticatedLength` 实验项 |
 | 传输：TCP | ✅ | `streamSettings.network = "tcp"` |
 | 传输：WebSocket | ✅ | `"ws"`；无 permessage-deflate |
 | 传输：TLS | ✅ | `security = "tls"`；ring provider，支持 `allowInsecure` |
@@ -61,9 +65,9 @@ flowchart LR
 | 路由 `domainMatcher` | ✅ hybrid / regexp | 兼容上游旧字段 |
 | CLI | ✅ `run` / `version` | `SIGINT` 与 `SIGTERM` 走同一优雅关闭路径 |
 | xhttp / gRPC / QUIC / Reality | ❌ | 未实现 |
-| UDP 代理（含 SOCKS5 UDP ASSOCIATE） | ❌ | 未实现 |
-| Trojan / VMess / Shadowsocks | ❌ | 未实现 |
-| Mux / XTLS-Vision / fallbacks | ❌ | 未实现 |
+| UDP 代理（含 SOCKS5 UDP ASSOCIATE、Trojan/VMess UDP） | ❌ | 未实现 |
+| Shadowsocks | ❌ | 未实现 |
+| Mux / XTLS-Vision / fallbacks / VMess Mux | ❌ | 未实现 |
 | fake DNS、`metadataOnly`、`ipsExcluded` | ❌ | 未实现 |
 | 统计 / 限速 / API | ❌ | 未实现 |
 
@@ -157,17 +161,20 @@ cargo test --workspace
 ```
 
 测试覆盖：嗅探解析单测（TLS ClientHello / HTTP Host，含任意截断的边界用例）、路由条件单测
-（端口段、network、full/domain/keyword/regexp、规则顺序优先级）、集成测试（SOCKS5→Freedom、
-VLESS→Freedom、TLS 嗅探→按域名路由）、CLI 冒烟测试。
+（端口段、network、full/domain/keyword/regexp、规则顺序优先级）、协议单测（Trojan 线格式、
+VMess KDF/头部/chunk 分帧与篡改检测，含上游 Go 实现生成的固定向量）、集成测试
+（SOCKS5→Freedom、VLESS→Freedom、Trojan→Freedom、VMess→Freedom、TLS 嗅探→按域名路由）、
+CLI 冒烟测试。
 
 > 本仓库的开发环境约束：本地只允许 `cargo fmt`，编译/测试/clippy 一律交由 CI 验证。
 > 依赖锁定文件 `Cargo.lock` 由 CI 构建产出并作为构建附件回传。
 
 ## 与上游的关系
 
-- 配置 schema、协议字节序、路由条件语义均对齐 Xray-core v26.9.30；例如 VLESS 请求头为
-  `version|uuid|addons_len|addons|command|port|atyp|addr`（端口在前），与 SOCKS5 的
-  「地址在前、端口在后」不同。
+- 配置 schema、协议字节序、路由条件语义均对齐 Xray-core v26.9.30；例如 VLESS/VMess 的地址
+  为「端口在前」（ATYP `1/2/3`），而 SOCKS5/Trojan 为「地址在前、端口在后」（ATYP `1/4/3`）。
+- VMess 的 `KDF` 复刻了上游自引用 HMAC 的语义（非普通嵌套 HMAC），并用上游 Go 实现生成的
+  固定向量做了回归校验。
 - 未实现的能力在上表中显式列出，不提供静默降级的占位实现：遇到不支持的配置会给出明确错误
   或告警（例如 `geosite:` 条件会跳过整条规则并记录 warning）。
 

@@ -4,16 +4,23 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 
 use xxxr_common::{Error, Result};
-use xxxr_config::{InboundConfig, Protocol, SocksInboundSettings, VlessInboundSettings};
+use xxxr_config::{
+    InboundConfig, Protocol, SocksInboundSettings, TrojanInboundSettings, VlessInboundSettings,
+    VmessInboundSettings,
+};
 use xxxr_net::Listener;
 
 use crate::traits::InboundHandler;
 
 mod socks;
+mod trojan;
 mod vless;
+mod vmess;
 
 pub use socks::SocksInbound;
+pub use trojan::TrojanInbound;
 pub use vless::VlessInbound;
+pub use vmess::VmessInbound;
 
 /// 依据配置构建入站处理器。
 ///
@@ -39,6 +46,24 @@ pub fn build_inbound(config: &InboundConfig) -> Result<Arc<dyn InboundHandler>> 
             let settings: VlessInboundSettings = config.parse_settings()?;
             settings.validate(&config.tag)?;
             Ok(Arc::new(VlessInbound::new(
+                config.tag.clone(),
+                listener,
+                settings,
+            )))
+        }
+        Protocol::Trojan => {
+            let settings: TrojanInboundSettings = config.parse_settings()?;
+            settings.validate(&config.tag)?;
+            Ok(Arc::new(TrojanInbound::new(
+                config.tag.clone(),
+                listener,
+                settings,
+            )))
+        }
+        Protocol::Vmess => {
+            let settings: VmessInboundSettings = config.parse_settings()?;
+            settings.validate(&config.tag)?;
+            Ok(Arc::new(VmessInbound::new(
                 config.tag.clone(),
                 listener,
                 settings,

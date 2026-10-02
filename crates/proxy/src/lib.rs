@@ -8,16 +8,22 @@
 //! - 域名嗅探：[`sniff`]（TLS SNI / HTTP Host）
 #![deny(missing_docs)]
 
+pub mod codec;
 pub mod context;
 pub mod inbound;
 pub mod outbound;
 pub mod relay;
 pub mod sniff;
 pub mod traits;
+pub mod trojan;
 pub mod vless;
+pub mod vmess;
 
+pub use codec::AddressStyle;
 pub use context::{Network, SessionContext};
-pub use inbound::{build_inbound, SocksInbound, VlessInbound};
-pub use outbound::{build_outbound, Blackhole, Freedom, VlessOutbound};
+pub use inbound::{build_inbound, SocksInbound, TrojanInbound, VlessInbound, VmessInbound};
+pub use outbound::{
+    build_outbound, Blackhole, Freedom, TrojanOutbound, VlessOutbound, VmessOutbound,
+};
 pub use sniff::{sniff_and_apply, SniffResult, Sniffer, SniffingSettings};
-pub use traits::{Dispatcher, InboundHandler, OutboundHandler};
+pub use traits::{Dispatcher, InboundHandler, OutboundHandler, ShutdownSignal};

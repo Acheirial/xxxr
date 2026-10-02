@@ -4,8 +4,6 @@
 //! command(1) | port(2, BE) | address_type(1) | address`；
 //! 响应头布局：`version(1) | addons_len(1) | addons(M)`。
 
-use std::net::IpAddr;
-
 use tokio::io::{AsyncRead, AsyncReadExt};
 use uuid::Uuid;
 use xxxr_common::{Error, Result};
@@ -136,63 +134,11 @@ pub fn encode_response(addons: &[u8]) -> Vec<u8> {
 ///
 /// VLESS 采用「端口在前」的编码：`port(2) + address_type(1) + address`；
 /// 这与 SOCKS5 的「端口在后」不同，切勿混用。
-pub async fn read_address<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Address> {
-    let port = reader.read_u16().await?;
-    let address_type = reader.read_u8().await?;
-    match address_type {
-        ADDRESS_TYPE_IPV4 => {
-            let mut raw = [0u8; 4];
-            reader.read_exact(&mut raw).await?;
-            Ok(Address::ip(IpAddr::from(raw), port))
-        }
-        ADDRESS_TYPE_IPV6 => {
-            let mut raw = [0u8; 16];
-            reader.read_exact(&mut raw).await?;
-            Ok(Address::ip(IpAddr::from(raw), port))
-        }
-        ADDRESS_TYPE_DOMAIN => {
-            let length = reader.read_u8().await? as usize;
-            if length == 0 {
-                return Err(Error::protocol("empty vless domain".to_string()));
-            }
-            let mut raw = vec![0u8; length];
-            reader.read_exact(&mut raw).await?;
-            let domain = String::from_utf8(raw)
-                .map_err(|e| Error::protocol(format!("invalid vless domain: {e}")))?;
-            Ok(Address::domain(domain, port))
-        }
-        other => Err(Error::protocol(format!(
-            "unsupported vless address type {other}"
-        ))),
-    }
+pub async fn read_address<R: AsyncRead + Unpin + ?Sized>(reader: &mut R) -> Result<Address> {
+    crate::codec::read_address(reader, crate::codec::AddressStyle::Vmess).await
 }
 
 /// 编码 VLESS 地址（`port(2) + address_type(1) + address`）。
 pub fn encode_address(dest: &Address, out: &mut Vec<u8>) -> Result<()> {
-    out.extend_from_slice(&dest.port.to_be_bytes());
-    match (&dest.domain, dest.ip) {
-        (Some(domain), _) => {
-            let bytes = domain.as_bytes();
-            if bytes.len() > u8::MAX as usize {
-                return Err(Error::protocol("vless domain too long".to_string()));
-            }
-            out.push(ADDRESS_TYPE_DOMAIN);
-            out.push(bytes.len() as u8);
-            out.extend_from_slice(bytes);
-        }
-        (None, Some(IpAddr::V4(v4))) => {
-            out.push(ADDRESS_TYPE_IPV4);
-            out.extend_from_slice(&v4.octets());
-        }
-        (None, Some(IpAddr::V6(v6))) => {
-            out.push(ADDRESS_TYPE_IPV6);
-            out.extend_from_slice(&v6.octets());
-        }
-        (None, None) => {
-            return Err(Error::protocol(
-                "address has neither domain nor ip".to_string(),
-            ));
-        }
-    }
-    Ok(())
+    crate::codec::write_address(dest, crate::codec::AddressStyle::Vmess, out)
 }

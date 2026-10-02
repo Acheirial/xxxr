@@ -1,0 +1,237 @@
+{
+  "meta": {
+    "repo": "XTLS/Xray-core",
+    "head": "b26a91de4f3294e26a0ad0a970b81a386a41f789",
+    "tag": "v26.9.30",
+    "file": "shadowsocks.json",
+    "generator": "legacy: exact copy of proxy/shadowsocks/config.go (Go 1.26.8); 2022: BLAKE3 + AES-GCM in Python, cross-checked by decrypting the Go-produced layout",
+    "notes": "No fixed upstream vectors; derived=true. Cross-checks: md5 chain, HKDF-SHA1 and SHA-224 all agree between Go and Python.",
+    "vector_count": 11,
+    "derived_count": 9,
+    "fixed_count": 2
+  },
+  "vectors": [
+    {
+      "id": "ss.legacy.evp_bytes_to_key",
+      "kind": "kdf",
+      "source": "proxy/shadowsocks/config.go:187-202",
+      "derived": true,
+      "input": {
+        "password_ascii": "test"
+      },
+      "expected": {
+        "key16_hex": "098f6bcd4621d373cade4e832627b4f6",
+        "key32_hex": "098f6bcd4621d373cade4e832627b4f60a9172716ae6428409885b8b829ccb05",
+        "algorithm": "key = MD5(pw); while len<size: key += MD5(prevMD5||pw)"
+      },
+      "note": "Cross-checked: MD5('test')=098f6bcd... in Python."
+    },
+    {
+      "id": "ss.legacy.hkdf_sha1_subkey",
+      "kind": "kdf",
+      "source": "proxy/shadowsocks/config.go:204-207",
+      "derived": true,
+      "input": {
+        "master_key_hex": "000102030405060708090a0b0c0d0e0f",
+        "iv_hex": "101112131415161718191a1b1c1d1e1f",
+        "out_len": 16
+      },
+      "expected": {
+        "subkey_hex": "6e1fe8a4522b2b31df56f720d9241521"
+      },
+      "note": "HKDF-SHA1(secret=masterKey, salt=IV, info='ss-subkey'). Cross-checked with cryptography.HKDF."
+    },
+    {
+      "id": "ss.legacy.aead_frame",
+      "kind": "aead-frame",
+      "source": "proxy/shadowsocks/config.go:147-168; common/crypto/chunk.go:43-60",
+      "derived": true,
+      "input": {
+        "subkey_hex": "6e1fe8a4522b2b31df56f720d9241521",
+        "plaintext_ascii": "hello shadowsocks"
+      },
+      "expected": {
+        "size_field_plain_hex": "0021",
+        "size_field_cipher_hex": "26075c99b67ac4c05ac516745e50b5ad3d93",
+        "payload_cipher_hex": "0903edad7e4db0ad0b838f3732245e80f4c7f41ce34391b2a039a7c4eea30feb79",
+        "frame_hex": "26075c99b67ac4c05ac516745e50b5ad3d930903edad7e4db0ad0b838f3732245e80f4c7f41ce34391b2a039a7c4eea30feb79"
+      },
+      "note": "size field = uint16BE(plaintext_len + 16) sealed with nonce 00*12; payload sealed with nonce 01 00*11. Decryption re-verified in Python."
+    },
+    {
+      "id": "ss.legacy.udp_packet",
+      "kind": "udp-frame",
+      "source": "proxy/shadowsocks/config.go:161-168",
+      "derived": true,
+      "input": {
+        "iv_hex": "101112131415161718191a1b1c1d1e1f",
+        "subkey_hex": "6e1fe8a4522b2b31df56f720d9241521",
+        "addrport_hex": "010102030401bb",
+        "payload_ascii": "hello shadowsocks"
+      },
+      "expected": {
+        "packet_hex": "101112131415161718191a1b1c1d1e1f27279329302fd3f0e086362e89f4cb02021b5354b733cc5568dfa353768e11b2725117529c99186f",
+        "layout": "IV(16) || AEAD(addrport||payload, nonce 00*12)"
+      }
+    },
+    {
+      "id": "ss.legacy.nonce_ladder",
+      "kind": "invariant",
+      "source": "common/crypto/auth.go:30-53",
+      "derived": true,
+      "input": {
+        "description": "GenerateAEADNonceWithSize starts at 0xFF*12 and increments from byte 0"
+      },
+      "expected": {
+        "first_nonce_hex": "000000000000000000000000",
+        "second_nonce_hex": "010000000000000000000000",
+        "explanation": "0xFF*12 + 1 == 0x00*12, so the first emitted nonce is all zeros, then 01 00..00."
+      }
+    },
+    {
+      "id": "ss2022.blake3.subkeys",
+      "kind": "kdf",
+      "source": "proxy/shadowsocks_2022/kdf.go:40-63",
+      "derived": true,
+      "input": {
+        "psk_hex": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+        "salt_hex": "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100",
+        "contexts": [
+          "shadowsocks 2022 session subkey",
+          "shadowsocks 2022 identity subkey"
+        ]
+      },
+      "expected": {
+        "session_subkey_hex": "a2ea8491f5095cb397e3c159cc3a7ce0a2ccfff31a1bc9ef58644b04e6441c54",
+        "identity_subkey_hex": "72648ddb531d88292a3e9b18031f5d23a92830b89dd3b1474e2fa00daded26b1",
+        "userpsk_hash16_hex": "eb10cbd0988f64beb23bee6ef626966d",
+        "algorithm": "BLAKE3-DeriveKey(ctx, psk||salt, 32); userPSKHash = BLAKE3-512(psk)[:16]"
+      }
+    },
+    {
+      "id": "ss2022.tcp_request_header",
+      "kind": "header-layout",
+      "source": "proxy/shadowsocks_2022/stream.go:321-395",
+      "derived": true,
+      "input": {
+        "method": "2022-blake3-aes-256-gcm",
+        "psk_hex": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+        "client_salt_hex": "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100",
+        "timestamp": 1700000000,
+        "dest": "1.2.3.4:443",
+        "payload_ascii": "hi",
+        "padding_len": 0
+      },
+      "expected": {
+        "fixed_plain_hex": "00000000006553f100000b",
+        "fixed_chunk_hex": "d11a54b70e2b129e950e5edd4bc864cd45479e66e6583558cc54aa",
+        "var_plain_hex": "010102030401bb00006869",
+        "var_chunk_hex": "95327a6076002efe8d91408f472fe4183aecdd034e2b93f494199a",
+        "full_hex": "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100d11a54b70e2b129e950e5edd4bc864cd45479e66e6583558cc54aa95327a6076002efe8d91408f472fe4183aecdd034e2b93f494199a",
+        "layout": "clientSalt(32) || AEAD(fixed, nonce=00*12) || AEAD(var, nonce=01 00*11)"
+      },
+      "note": "fixed = [0x00][ts u64][varLen u16]; var = addrport + padLen u16 + padding + payload. Decryption re-verified in Python."
+    },
+    {
+      "id": "ss2022.tcp_response_header",
+      "kind": "header-layout",
+      "source": "proxy/shadowsocks_2022/stream.go:482-536",
+      "derived": true,
+      "input": {
+        "server_salt_hex": "0102030405060708090a0b0c0d0e0f100102030405060708090a0b0c0d0e0f10",
+        "psk_hex": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+        "client_salt_hex": "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100",
+        "timestamp": 1700000000,
+        "initial_payload_len": 0
+      },
+      "expected": {
+        "fixed_plain_hex": "01000000006553f100ffeeddccbbaa99887766554433221100ffeeddccbbaa998877665544332211000000",
+        "full_hex": "0102030405060708090a0b0c0d0e0f100102030405060708090a0b0c0d0e0f10183e4e5ef7683f4ea3e764bd2382cf0933de2a54965d5ebdf3572d4aa4e69c5ee471af6ec3e47313ac1367970557d49c78b072e99d081fdc7fdd96",
+        "layout": "serverSalt(32) || AEAD([0x01][ts u64][echoed clientSalt][initLen u16], nonce=00*12)"
+      },
+      "note": "Server header echoes the client salt; client must reject on mismatch. Decryption re-verified in Python."
+    },
+    {
+      "id": "ss2022.stream_chunk",
+      "kind": "stream-frame",
+      "source": "proxy/shadowsocks_2022/stream.go:82-99",
+      "derived": true,
+      "input": {
+        "psk_hex": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
+        "salt_hex": "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100",
+        "payload_ascii": "hi"
+      },
+      "expected": {
+        "chunk_hex": "d118d575e9857db79ec867b309dde61a2c14fc5a7da36879b03a1f464e939d23b7d97acd",
+        "layout": "AEAD(uint16BE(len), nonce=k) || AEAD(payload, nonce=k+1); nonce increments from byte 0"
+      },
+      "note": "Each chunk consumes two nonces. StreamNonceSize=12, AEADTagSize=16, MaxPacketSize=65535."
+    },
+    {
+      "id": "ss.methods.legacy",
+      "kind": "method-list",
+      "source": "infra/conf/shadowsocks.go:15-27",
+      "derived": false,
+      "input": {},
+      "expected": {
+        "aliases": {
+          "aes-128-gcm": [
+            "aes-128-gcm",
+            "aead_aes_128_gcm"
+          ],
+          "aes-256-gcm": [
+            "aes-256-gcm",
+            "aead_aes_256_gcm"
+          ],
+          "chacha20-poly1305": [
+            "chacha20-poly1305",
+            "aead_chacha20_poly1305",
+            "chacha20-ietf-poly1305"
+          ],
+          "xchacha20-poly1305": [
+            "xchacha20-poly1305",
+            "aead_xchacha20_poly1305",
+            "xchacha20-ietf-poly1305"
+          ]
+        },
+        "none_or_plain_supported": false
+      },
+      "note": "There is NO 'none'/'plain' method and NO legacy stream cipher in this version."
+    },
+    {
+      "id": "ss.methods.2022",
+      "kind": "method-list",
+      "source": "proxy/shadowsocks_2022/cipher.go:18-22; shadowsocks_2022.go:178-180",
+      "derived": false,
+      "input": {},
+      "expected": {
+        "methods": {
+          "2022-blake3-aes-128-gcm": {
+            "key_salt_len": 16,
+            "chacha": false
+          },
+          "2022-blake3-aes-256-gcm": {
+            "key_salt_len": 32,
+            "chacha": false
+          },
+          "2022-blake3-chacha20-poly1305": {
+            "key_salt_len": 32,
+            "chacha": true
+          }
+        },
+        "constants": {
+          "max_padding_length": 900,
+          "packet_nonce_size": 24,
+          "max_packet_size": 65535,
+          "request_header_fixed_chunk_length": 11,
+          "packet_minimal_header_size": 30,
+          "stream_nonce_size": 12,
+          "aes_block_size": 16,
+          "aead_tag_size": 16
+        },
+        "timestamp_tolerance_seconds": 30
+      },
+      "note": "2022 is selected by method inside the same 'shadowsocks' protocol, not a separate protocol name."
+    }
+  ]
+}

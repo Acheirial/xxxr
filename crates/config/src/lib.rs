@@ -17,6 +17,8 @@ pub use model::{
 };
 pub use settings::{
     BlackholeSettings, FreedomSettings, SniffingSettings, SocksAccount, SocksInboundSettings,
-    VlessClient, VlessInboundSettings, VlessOutboundSettings, VlessServer, VlessUser,
+    TrojanClient, TrojanInboundSettings, TrojanOutboundSettings, TrojanServer, VlessClient,
+    VlessInboundSettings, VlessOutboundSettings, VlessServer, VlessUser, VmessClient,
+    VmessInboundSettings, VmessOutboundSettings, VmessSecurity, VmessServer, VmessUser,
 };
 pub use xxxr_common::logging::Level;

@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "repo": "XTLS/Xray-core",
+    "head": "b26a91de4f3294e26a0ad0a970b81a386a41f789",
+    "tag": "v26.9.30",
+    "file": "trojan.json",
+    "generator": "faithful copy of proxy/trojan/{config,protocol}.go run under Go 1.26.8; SHA-224 cross-checked in Python",
+    "notes": "Upstream tests use password 'password' but only assert round-trip, not bytes; vectors are derived=true.",
+    "vector_count": 4,
+    "derived_count": 3,
+    "fixed_count": 1
+  },
+  "vectors": [
+    {
+      "id": "trojan.sha224",
+      "kind": "hash",
+      "source": "proxy/trojan/config.go:44-50",
+      "derived": true,
+      "input": {
+        "password": "password"
+      },
+      "expected": {
+        "hex_len": 56,
+        "hex_ascii": "d63dc919e201d7bc4c825630d2cf25fdc93d4b2f0d46706d29038d01"
+      },
+      "note": "Key = lowercase hex of SHA-224(password) = 56 ASCII chars. Cross-checked in Python (hashlib.sha224)."
+    },
+    {
+      "id": "trojan.tcp_request_header",
+      "kind": "header-layout",
+      "source": "proxy/trojan/protocol.go:64-92",
+      "derived": true,
+      "input": {
+        "password": "password",
+        "command": 1,
+        "dest": "1.2.3.4:443"
+      },
+      "expected": {
+        "bytes_hex": "64363364633931396532303164376263346338323536333064326366323566646339336434623266306434363730366432393033386430310d0a01010102030401bb0d0a",
+        "fields": {
+          "[0:56]hexSHA224(password)": "d63dc919e201d7bc4c825630d2cf25fdc93d4b2f0d46706d29038d01",
+          "[56:58]CRLF": "0d0a",
+          "[58]command": "01",
+          "[59:64]addrport": "010102030401bb",
+          "[64:66]CRLF": "0d0a"
+        }
+      },
+      "note": "command 1=TCP, 3=UDP. Address uses SOCKS5 mapping (1/4/3, address first, port last)."
+    },
+    {
+      "id": "trojan.udp_packet",
+      "kind": "udp-frame",
+      "source": "proxy/trojan/protocol.go:125-145",
+      "derived": true,
+      "input": {
+        "dest": "1.2.3.4:443",
+        "payload_ascii": "test string"
+      },
+      "expected": {
+        "bytes_hex": "010102030401bb000b0d0a7465737420737472696e67",
+        "fields": {
+          "addrport": "010102030401bb",
+          "length_be": "000b",
+          "crlf": "0d0a",
+          "payload": "7465737420737472696e67"
+        }
+      },
+      "note": "Frame = addrport + uint16BE(len) + CRLF + payload; max length 8192."
+    },
+    {
+      "id": "trojan.constants",
+      "kind": "constants",
+      "source": "proxy/trojan/protocol.go:14,24-27",
+      "derived": false,
+      "input": {},
+      "expected": {
+        "crlf_hex": "0d0a",
+        "command_tcp": 1,
+        "command_udp": 3,
+        "max_length": 8192,
+        "addrtype_ipv4": 1,
+        "addrtype_ipv6": 4,
+        "addrtype_domain": 3,
+        "sha224_hex_len": 56,
+        "min_first_len": 58
+      }
+    }
+  ]
+}

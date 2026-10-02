@@ -8,7 +8,10 @@ use xxxr_common::logging::Level;
 use xxxr_common::{Error, Result};
 
 use crate::matcher::{MatchMode, PortList, StringList};
-use crate::settings::{SocksInboundSettings, VlessInboundSettings, VlessOutboundSettings};
+use crate::settings::{
+    SocksInboundSettings, TrojanInboundSettings, TrojanOutboundSettings, VlessInboundSettings,
+    VlessOutboundSettings, VmessInboundSettings, VmessOutboundSettings,
+};
 
 /// 协议名称，由 JSON 中的小写字符串反序列化。
 ///
@@ -17,6 +20,10 @@ use crate::settings::{SocksInboundSettings, VlessInboundSettings, VlessOutboundS
 pub enum Protocol {
     /// VLESS。
     Vless,
+    /// VMess（AEAD）。
+    Vmess,
+    /// Trojan。
+    Trojan,
     /// SOCKS（SOCKS5）。
     Socks,
     /// Freedom（直连）。
@@ -32,6 +39,8 @@ impl Protocol {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Vless => "vless",
+            Self::Vmess => "vmess",
+            Self::Trojan => "trojan",
             Self::Socks => "socks",
             Self::Freedom => "freedom",
             Self::Blackhole => "blackhole",
@@ -63,6 +72,8 @@ impl<'de> Deserialize<'de> for Protocol {
         let raw = String::deserialize(deserializer)?;
         Ok(match raw.to_ascii_lowercase().as_str() {
             "vless" => Self::Vless,
+            "vmess" => Self::Vmess,
+            "trojan" => Self::Trojan,
             "socks" => Self::Socks,
             "freedom" => Self::Freedom,
             "blackhole" => Self::Blackhole,
@@ -273,6 +284,14 @@ impl Config {
                     let settings: VlessInboundSettings = inbound.parse_settings()?;
                     settings.validate(&inbound.tag)?;
                 }
+                Protocol::Vmess => {
+                    let settings: VmessInboundSettings = inbound.parse_settings()?;
+                    settings.validate(&inbound.tag)?;
+                }
+                Protocol::Trojan => {
+                    let settings: TrojanInboundSettings = inbound.parse_settings()?;
+                    settings.validate(&inbound.tag)?;
+                }
                 _ => {
                     return Err(Error::unsupported(format!(
                         "inbound protocol `{}`",
@@ -302,6 +321,14 @@ impl Config {
             match outbound.protocol {
                 Protocol::Vless => {
                     let settings: VlessOutboundSettings = outbound.parse_settings()?;
+                    settings.validate(&outbound.tag)?;
+                }
+                Protocol::Vmess => {
+                    let settings: VmessOutboundSettings = outbound.parse_settings()?;
+                    settings.validate(&outbound.tag)?;
+                }
+                Protocol::Trojan => {
+                    let settings: TrojanOutboundSettings = outbound.parse_settings()?;
                     settings.validate(&outbound.tag)?;
                 }
                 Protocol::Freedom | Protocol::Blackhole | Protocol::Socks => {}

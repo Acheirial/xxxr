@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "repo": "XTLS/Xray-core",
+    "head": "b26a91de4f3294e26a0ad0a970b81a386a41f789",
+    "tag": "v26.9.30",
+    "file": "vless.json",
+    "generator": "exact byte construction from proxy/vless/encoding/encoding.go; address encoders verified by hand",
+    "notes": "Upstream encoding tests are round-trip only; all vectors derived=true.",
+    "vector_count": 6,
+    "derived_count": 4,
+    "fixed_count": 2
+  },
+  "vectors": [
+    {
+      "id": "vless.request_header.no_addons",
+      "kind": "header-layout",
+      "source": "proxy/vless/encoding/encoding.go:30-61",
+      "derived": true,
+      "input": {
+        "version": 0,
+        "uuid_hex": "11111111222233334444555555555555",
+        "addons_len": 0,
+        "command": 1,
+        "dest": "1.2.3.4:443"
+      },
+      "expected": {
+        "bytes_hex": "0011111111222233334444555555555555000101bb0101020304",
+        "fields": {
+          "[0]version": "00",
+          "[1:17]uuid": "11111111222233334444555555555555",
+          "[17]addons_len": "00",
+          "[18]command": "01",
+          "[19:21]port_be": "01bb",
+          "[21]addr_type": "01",
+          "[22:26]ipv4": "01020304"
+        }
+      },
+      "note": "PortThenAddress: port BEFORE address (opposite of SOCKS5/Trojan)."
+    },
+    {
+      "id": "vless.request_header.with_flow",
+      "kind": "header-layout",
+      "source": "proxy/vless/encoding/addons.go:17-37",
+      "derived": true,
+      "input": {
+        "version": 0,
+        "uuid_hex": "11111111222233334444555555555555",
+        "flow": "xtls-rprx-vision",
+        "command": 1,
+        "dest": "1.2.3.4:443"
+      },
+      "expected": {
+        "addons_bytes_hex": "0a1078746c732d727072782d766973696f6e",
+        "addons_len": 18,
+        "bytes_hex": "0011111111222233334444555555555555120a1078746c732d727072782d766973696f6e0101bb0101020304"
+      },
+      "note": "Flow is protobuf Addons{Flow=1 string}; length byte precedes the marshalled message."
+    },
+    {
+      "id": "vless.response_header",
+      "kind": "header-layout",
+      "source": "proxy/vless/encoding/encoding.go:135-175",
+      "derived": true,
+      "input": {
+        "version": 0,
+        "addons_len": 0
+      },
+      "expected": {
+        "bytes_hex": "0000"
+      },
+      "note": "Response header is ONLY version(1) + addons; no uuid/command/address."
+    },
+    {
+      "id": "vless.address.types",
+      "kind": "address-encoding",
+      "source": "proxy/vless/encoding/encoding.go:22-27; common/protocol/address.go:15-19,117-146",
+      "derived": true,
+      "input": {
+        "port": 443
+      },
+      "expected": {
+        "ipv4_hex": "01bb0101020304",
+        "domain_hex": "01bb020b6578616d706c652e636f6d",
+        "ipv6_hex": "01bb0320010db8000000000000000000000001",
+        "ipv4_fields": {
+          "port_be": "01bb",
+          "atyp": "01",
+          "addr": "01020304"
+        },
+        "domain_fields": {
+          "port_be": "01bb",
+          "atyp": "02",
+          "len": "0b",
+          "domain": "6578616d706c652e636f6d"
+        },
+        "ipv6_fields": {
+          "port_be": "01bb",
+          "atyp": "03",
+          "addr": "20010db8000000000000000000000001"
+        }
+      },
+      "note": "ATYP 1=IPv4, 2=Domain, 3=IPv6. IPv6 example address is 2001:db8::1."
+    },
+    {
+      "id": "vless.constants",
+      "kind": "constants",
+      "source": "proxy/vless/encoding/encoding.go:19; proxy/vless/vless.go:9-10; common/protocol/headers.go:15-18",
+      "derived": false,
+      "input": {},
+      "expected": {
+        "version": 0,
+        "cmd_tcp": 1,
+        "cmd_udp": 2,
+        "cmd_mux": 3,
+        "cmd_rvs": 4,
+        "flow_none": "",
+        "flow_vision": "xtls-rprx-vision",
+        "addrtype_ipv4": 1,
+        "addrtype_domain": 2,
+        "addrtype_ipv6": 3
+      }
+    },
+    {
+      "id": "vless.uuid.normalization",
+      "kind": "invariant",
+      "source": "proxy/vless/validator.go:21-25",
+      "derived": false,
+      "input": {
+        "rule": "user lookup zeroes bytes 6 and 7 of the 16-byte UUID"
+      },
+      "expected": {
+        "example": "uuid 11111111-2222-3333-4444-555555555555 -> lookup key bytes[6]=00, bytes[7]=00"
+      }
+    }
+  ]
+}

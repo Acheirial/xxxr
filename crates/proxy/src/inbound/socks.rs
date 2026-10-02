@@ -22,7 +22,6 @@ const COMMAND_CONNECT: u8 = 0x01;
 const REPLY_SUCCEEDED: u8 = 0x00;
 const REPLY_COMMAND_NOT_SUPPORTED: u8 = 0x07;
 const ADDRESS_TYPE_IPV4: u8 = 0x01;
-const ADDRESS_TYPE_DOMAIN: u8 = 0x03;
 const ADDRESS_TYPE_IPV6: u8 = 0x04;
 
 /// SOCKS5 入站。
@@ -220,36 +219,7 @@ async fn verify_user_password(conn: &mut dyn Conn, accounts: &[SocksAccount]) ->
 }
 
 async fn read_address(conn: &mut dyn Conn) -> Result<Address> {
-    let address_type = conn.read_u8().await?;
-    match address_type {
-        ADDRESS_TYPE_IPV4 => {
-            let mut raw = [0u8; 4];
-            conn.read_exact(&mut raw).await?;
-            let port = conn.read_u16().await?;
-            Ok(Address::ip(IpAddr::from(raw), port))
-        }
-        ADDRESS_TYPE_IPV6 => {
-            let mut raw = [0u8; 16];
-            conn.read_exact(&mut raw).await?;
-            let port = conn.read_u16().await?;
-            Ok(Address::ip(IpAddr::from(raw), port))
-        }
-        ADDRESS_TYPE_DOMAIN => {
-            let length = conn.read_u8().await? as usize;
-            if length == 0 {
-                return Err(Error::protocol("empty socks domain".to_string()));
-            }
-            let mut raw = vec![0u8; length];
-            conn.read_exact(&mut raw).await?;
-            let domain = String::from_utf8(raw)
-                .map_err(|e| Error::protocol(format!("invalid socks domain: {e}")))?;
-            let port = conn.read_u16().await?;
-            Ok(Address::domain(domain, port))
-        }
-        other => Err(Error::protocol(format!(
-            "unsupported socks address type {other}"
-        ))),
-    }
+    crate::codec::read_address(conn, crate::codec::AddressStyle::Socks).await
 }
 
 async fn write_reply(conn: &mut dyn Conn, reply: u8, bound: SocketAddr) -> Result<()> {
