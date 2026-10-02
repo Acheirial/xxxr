@@ -1,0 +1,29 @@
+[package]
+name = "xxxr"
+description = "xxxr：Xray-core 的 Rust 重写实现（Dispatcher / Router / Instance / CLI）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "xxxr"
+path = "src/main.rs"
+
+[dependencies]
+xxxr-common.workspace = true
+xxxr-config.workspace = true
+xxxr-net.workspace = true
+xxxr-proxy.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

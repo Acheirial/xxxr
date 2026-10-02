@@ -1,0 +1,43 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/common",
+    "crates/net",
+    "crates/config",
+    "crates/proxy",
+    "crates/app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Acheirial/xxxr"
+
+[workspace.dependencies]
+xxxr-common = { path = "crates/common" }
+xxxr-net = { path = "crates/net" }
+xxxr-config = { path = "crates/config" }
+xxxr-proxy = { path = "crates/proxy" }
+
+anyhow = "1"
+async-trait = "0.1"
+base64 = "0.22"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# TLS：统一使用 ring provider，避免 aws-lc-rs 的 C 工具链依赖。
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-pki-types = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "logging"] }
+rustls-pemfile = "2"
+webpki-roots = "0.26"

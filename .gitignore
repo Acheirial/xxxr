@@ -1,0 +1,13 @@
+# 工作区元文件（严禁入库）
+AGENTS.md
+
+# 构建产物
+/target
+target/
+
+# 关键文件备份目录
+/backups
+
+# 编辑器 / 系统
+*.swp
+.DS_Store

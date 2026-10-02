@@ -1,0 +1,16 @@
+[package]
+name = "xxxr-config"
+description = "xxxr 配置层：Xray JSON 配置的 serde 模型、加载与校验"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+xxxr-common.workspace = true
+xxxr-net.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
