@@ -127,7 +127,7 @@ async fn socks5_connect_round_trip() {
     client.read_exact(&mut echoed).await.unwrap();
     assert_eq!(&echoed, payload);
 
-    instance.shutdown();
+    instance.shutdown().await;
 }
 
 #[tokio::test]
@@ -172,5 +172,5 @@ async fn socks5_password_auth_rejects_bad_credentials() {
     client.read_exact(&mut status).await.unwrap();
     assert_eq!(status, [0x01, 0x01], "bad credentials must be rejected");
 
-    instance.shutdown();
+    instance.shutdown().await;
 }

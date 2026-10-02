@@ -7,14 +7,16 @@
 //! - `settings` 保持为 [`serde_json::Value`]，由各协议实现按需解析为强类型。
 #![deny(missing_docs)]
 
+pub mod matcher;
 pub mod model;
 pub mod settings;
 
+pub use matcher::{DomainMatcher, DomainType, IpMatcher, MatchMode, PortList, StringList};
 pub use model::{
     Config, InboundConfig, LogConfig, OutboundConfig, Protocol, RoutingConfig, RoutingRule,
 };
 pub use settings::{
-    BlackholeSettings, FreedomSettings, SocksAccount, SocksInboundSettings, VlessClient,
-    VlessInboundSettings, VlessOutboundSettings, VlessServer, VlessUser,
+    BlackholeSettings, FreedomSettings, SniffingSettings, SocksAccount, SocksInboundSettings,
+    VlessClient, VlessInboundSettings, VlessOutboundSettings, VlessServer, VlessUser,
 };
 pub use xxxr_common::logging::Level;

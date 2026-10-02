@@ -5,16 +5,19 @@
 //!
 //! - 入站：SOCKS5（CONNECT）、VLESS（TCP，version 0）
 //! - 出站：Freedom、Blackhole、VLESS（TCP）
+//! - 域名嗅探：[`sniff`]（TLS SNI / HTTP Host）
 #![deny(missing_docs)]
 
 pub mod context;
 pub mod inbound;
 pub mod outbound;
 pub mod relay;
+pub mod sniff;
 pub mod traits;
 pub mod vless;
 
 pub use context::{Network, SessionContext};
 pub use inbound::{build_inbound, SocksInbound, VlessInbound};
 pub use outbound::{build_outbound, Blackhole, Freedom, VlessOutbound};
+pub use sniff::{sniff_and_apply, SniffResult, Sniffer, SniffingSettings};
 pub use traits::{Dispatcher, InboundHandler, OutboundHandler};

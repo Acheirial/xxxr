@@ -13,7 +13,8 @@ use xxxr_config::VlessInboundSettings;
 use xxxr_net::{Address, Listener};
 
 use crate::context::{Network, SessionContext};
-use crate::traits::{Dispatcher, InboundHandler};
+use crate::sniff::{sniff_and_apply, Sniffer};
+use crate::traits::{Dispatcher, InboundHandler, ShutdownSignal};
 use crate::vless::{self, Command};
 
 /// VLESS 入站。
@@ -65,12 +66,33 @@ impl InboundHandler for VlessInbound {
         &self.tag
     }
 
-    async fn listen(&self, dispatcher: Arc<dyn Dispatcher>) -> Result<()> {
+    async fn listen(
+        &self,
+        dispatcher: Arc<dyn Dispatcher>,
+        mut shutdown: ShutdownSignal,
+        sniffer: Option<Arc<Sniffer>>,
+    ) -> Result<()> {
         let listener = self.listener.to_tokio()?;
         let local = self.listener.local_addr();
-        tracing::info!(tag = %self.tag, %local, "vless inbound listening");
+        tracing::info!(
+            tag = %self.tag,
+            %local,
+            users = self.users.len(),
+            sniffing = sniffer.is_some(),
+            "vless inbound listening"
+        );
         loop {
-            let (stream, peer) = match listener.accept().await {
+            let accepted = tokio::select! {
+                _ = shutdown.changed() => {
+                    tracing::info!(
+                        tag = %self.tag,
+                        "vless inbound stopped accepting connections"
+                    );
+                    return Ok(());
+                }
+                accepted = listener.accept() => accepted,
+            };
+            let (stream, peer) = match accepted {
                 Ok(pair) => pair,
                 Err(e) => {
                     tracing::warn!(tag = %self.tag, "accept failed: {e}");
@@ -81,9 +103,18 @@ impl InboundHandler for VlessInbound {
             let users = self.users.clone();
             let listener = Arc::clone(&self.listener);
             let dispatcher = Arc::clone(&dispatcher);
+            let sniffer = sniffer.clone();
             tokio::spawn(async move {
-                match handle_connection(stream, peer, &listener, &users, &inbound_tag, &dispatcher)
-                    .await
+                match handle_connection(
+                    stream,
+                    peer,
+                    &listener,
+                    &users,
+                    &inbound_tag,
+                    &dispatcher,
+                    sniffer.as_deref(),
+                )
+                .await
                 {
                     Ok(()) => tracing::debug!(%peer, "vless session finished"),
                     Err(e) => tracing::debug!(%peer, "vless session closed: {e}"),
@@ -100,6 +131,7 @@ async fn handle_connection(
     users: &HashMap<Uuid, String>,
     inbound_tag: &str,
     dispatcher: &Arc<dyn Dispatcher>,
+    sniffer: Option<&Sniffer>,
 ) -> Result<()> {
     let mut conn = listener.accept_stream(stream, peer).await?;
     let request = vless::read_request(&mut conn).await?;
@@ -122,5 +154,8 @@ async fn handle_connection(
     let mut ctx = SessionContext::new(inbound_tag.to_string(), Some(Address::from(peer)));
     ctx.target = Some(request.dest);
     ctx.network = Network::Tcp;
+
+    // 上游语义：入站协议握手完成后、路由之前执行嗅探。
+    let mut conn = sniff_and_apply(conn, sniffer, &mut ctx).await?;
     dispatcher.dispatch(&mut ctx, &mut *conn).await
 }

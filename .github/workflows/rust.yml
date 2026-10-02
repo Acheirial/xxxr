@@ -35,3 +35,13 @@ jobs:
 
       - name: cargo test
         run: cargo test --workspace
+
+      # 本地被禁止执行 cargo 编译，因此依赖锁定文件由 CI 生成并回传：
+      # 下载后提交到仓库即可固定依赖版本。
+      - name: Upload Cargo.lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock
+          path: Cargo.lock
+          if-no-files-found: ignore

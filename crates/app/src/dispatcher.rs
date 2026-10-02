@@ -56,8 +56,8 @@ impl Dispatcher {
 impl DispatcherApi for Dispatcher {
     async fn dispatch(&self, ctx: &mut SessionContext, out: &mut dyn Conn) -> Result<()> {
         let target = ctx
-            .target
-            .clone()
+            .outbound_target()
+            .cloned()
             .ok_or_else(|| Error::protocol("session has no target address".to_string()))?;
         let tag = self
             .select_tag(ctx)

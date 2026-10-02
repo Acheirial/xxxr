@@ -7,6 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use xxxr_common::logging::Level;
 use xxxr_common::{Error, Result};
 
+use crate::matcher::{MatchMode, PortList, StringList};
 use crate::settings::{SocksInboundSettings, VlessInboundSettings, VlessOutboundSettings};
 
 /// 协议名称，由 JSON 中的小写字符串反序列化。
@@ -109,8 +110,8 @@ pub struct InboundConfig {
     pub settings: serde_json::Value,
     /// 传输层配置。
     pub stream_settings: Option<xxxr_net::StreamSettings>,
-    /// 嗅探配置，当前仅保留字段。
-    pub sniffing: Option<serde_json::Value>,
+    /// 域名嗅探配置。
+    pub sniffing: Option<crate::settings::SniffingSettings>,
 }
 
 impl InboundConfig {
@@ -160,31 +161,46 @@ fn parse_settings_value<T: serde::de::DeserializeOwned>(
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RoutingConfig {
-    /// 域名解析策略，当前仅保留字段。
-    pub domain_strategy: Option<String>,
     /// 规则列表，按顺序匹配，命中即停止。
     pub rules: Vec<RoutingRule>,
+    /// 域名匹配模式，对应上游旧字段 `domainMatcher`：`hybrid`（默认）或 `regexp`。
+    pub domain_matcher: Option<MatchMode>,
+    /// 域名解析策略，当前仅保留字段。
+    pub domain_strategy: Option<String>,
 }
 
 /// 单条路由规则。
+///
+/// 规则内部的条件之间是「与」关系；同一条件的多个取值之间是「或」关系。
+/// 各条件的取值语义与上游 `app/router/condition.go` 一致：
+/// - `domain` 取路由目标（嗅探后的域名）；
+/// - `ip` / `port` 取出站实际拨号的目标；
+/// - `source` 取客户端来源地址。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RoutingRule {
-    /// 规则类型（Xray 为 `field`），当前仅保留字段。
-    pub r#type: Option<String>,
     /// 匹配的入站 tag 列表。
-    pub inbound_tag: Option<Vec<String>>,
-    /// 匹配的域名列表，支持 `domain:` / `full:` / 裸关键词前缀。
-    pub domain: Option<Vec<String>>,
-    /// 匹配的 IP 列表，支持单个 IP 或 CIDR。
-    pub ip: Option<Vec<String>>,
-    /// 匹配的目标端口（暂不解析）。
-    pub port: Option<String>,
-    /// 匹配的协议类型 `tcp` / `udp`（暂不解析）。
-    pub network: Option<String>,
+    pub inbound_tag: Option<StringList>,
+    /// 匹配的域名列表，支持 `full:` / `domain:` / `keyword:` / `regexp:` / `dotless:`。
+    pub domain: Option<StringList>,
+    /// 匹配的目标 IP 列表，支持单个 IP 或 CIDR，`!` 前缀取反。
+    pub ip: Option<StringList>,
+    /// 匹配的目标端口或端口段（`"80"` / `"100-200"` / `"80,443"`）。
+    pub port: Option<PortList>,
+    /// 匹配的传输层类型（`tcp` / `udp`）。
+    pub network: Option<StringList>,
+    /// 匹配的来源 IP 列表（`sourceIP` / `source`），支持单个 IP 或 CIDR。
+    pub source: Option<StringList>,
+    /// 匹配的来源 IP 列表（`sourceIP`），存在时优先于 `source`。
+    #[serde(rename = "sourceIP")]
+    pub source_ip: Option<StringList>,
+    /// 匹配的嗅探协议名列表（如 `tls` / `http`，按前缀匹配）。
+    pub protocol: Option<StringList>,
     /// 命中的出站 tag。
     pub outbound_tag: String,
-    /// 规则标签，当前仅保留字段。
+    /// 规则类型（Xray 为 `field`），当前仅保留字段。
+    pub r#type: Option<String>,
+    /// 规则备注标签，便于排查；不参与匹配。
     pub rule_tag: Option<String>,
     /// 是否启用，缺省为启用。
     pub enabled: Option<bool>,

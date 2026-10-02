@@ -130,7 +130,7 @@ async fn vless_tcp_round_trip() {
     client.read_exact(&mut echoed).await.unwrap();
     assert_eq!(&echoed, payload);
 
-    instance.shutdown();
+    instance.shutdown().await;
 }
 
 #[tokio::test]
@@ -157,5 +157,5 @@ async fn vless_rejects_unknown_user() {
         Err(e) => panic!("unexpected error for unknown user: {e}"),
     }
 
-    instance.shutdown();
+    instance.shutdown().await;
 }

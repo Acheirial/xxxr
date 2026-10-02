@@ -9,10 +9,12 @@ pub mod address;
 pub mod conn;
 pub mod dialer;
 pub mod listener;
+pub mod prefixed;
 pub mod transport;
 
 pub use address::Address;
 pub use conn::Conn;
 pub use dialer::Dialer;
 pub use listener::Listener;
+pub use prefixed::Prefixed;
 pub use transport::{Security, StreamSettings, TlsSettings, Transport, WsSettings};

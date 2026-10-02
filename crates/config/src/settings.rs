@@ -192,3 +192,25 @@ pub struct BlackholeSettings {
     /// 响应类型，当前版本一律直接关闭连接。
     pub response: Option<serde_json::Value>,
 }
+
+/// 入站的域名嗅探配置（`inbounds[].sniffing`）。
+///
+/// 字段名与上游 `SniffingConfig` 一致。上游的 `metadataOnly` 与 `ipsExcluded`
+/// 当前未实现（前者依赖 fake DNS，后者依赖 geoip 数据）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SniffingSettings {
+    /// 是否启用嗅探。
+    pub enabled: bool,
+    /// 命中其中任一协议时，用嗅探出的域名改写目标地址。
+    ///
+    /// 协议按前缀匹配，因此 `"http"` 可以命中 `http1`。
+    pub dest_override: Vec<String>,
+    /// 不参与改写的域名条件。
+    ///
+    /// 支持 `regexp:` / `full:` / `domain:` / `keyword:` 前缀；未带前缀时按
+    /// 上游语义等同于 `keyword:`（子串匹配）。
+    pub domains_excluded: Vec<String>,
+    /// 仅把嗅探结果用于路由匹配，不改写出站实际拨号的目标。
+    pub route_only: bool,
+}

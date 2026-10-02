@@ -11,7 +11,8 @@ use xxxr_config::{SocksAccount, SocksInboundSettings};
 use xxxr_net::{Address, Conn, Listener};
 
 use crate::context::{Network, SessionContext};
-use crate::traits::{Dispatcher, InboundHandler};
+use crate::sniff::{sniff_and_apply, Sniffer};
+use crate::traits::{Dispatcher, InboundHandler, ShutdownSignal};
 
 const SOCKS_VERSION: u8 = 0x05;
 const METHOD_NO_AUTH: u8 = 0x00;
@@ -65,10 +66,20 @@ impl InboundHandler for SocksInbound {
         &self.tag
     }
 
-    async fn listen(&self, dispatcher: Arc<dyn Dispatcher>) -> Result<()> {
+    async fn listen(
+        &self,
+        dispatcher: Arc<dyn Dispatcher>,
+        mut shutdown: ShutdownSignal,
+        sniffer: Option<Arc<Sniffer>>,
+    ) -> Result<()> {
         let listener = self.listener.to_tokio()?;
         let local = self.listener.local_addr();
-        tracing::info!(tag = %self.tag, %local, "socks inbound listening");
+        tracing::info!(
+            tag = %self.tag,
+            %local,
+            sniffing = sniffer.is_some(),
+            "socks inbound listening"
+        );
         let shared = Arc::new(Shared {
             inbound_tag: self.tag.clone(),
             listener: Arc::clone(&self.listener),
@@ -80,7 +91,17 @@ impl InboundHandler for SocksInbound {
             dispatcher,
         });
         loop {
-            let (stream, peer) = match listener.accept().await {
+            let accepted = tokio::select! {
+                _ = shutdown.changed() => {
+                    tracing::info!(
+                        tag = %self.tag,
+                        "socks inbound stopped accepting connections"
+                    );
+                    return Ok(());
+                }
+                accepted = listener.accept() => accepted,
+            };
+            let (stream, peer) = match accepted {
                 Ok(pair) => pair,
                 Err(e) => {
                     tracing::warn!(tag = %self.tag, "accept failed: {e}");
@@ -88,8 +109,9 @@ impl InboundHandler for SocksInbound {
                 }
             };
             let shared = Arc::clone(&shared);
+            let sniffer = sniffer.clone();
             tokio::spawn(async move {
-                match handle_connection(stream, peer, &shared).await {
+                match handle_connection(stream, peer, &shared, sniffer.as_deref()).await {
                     Ok(()) => tracing::debug!(%peer, "socks session finished"),
                     Err(e) => tracing::debug!(%peer, "socks session closed: {e}"),
                 }
@@ -98,7 +120,12 @@ impl InboundHandler for SocksInbound {
     }
 }
 
-async fn handle_connection(stream: TcpStream, peer: SocketAddr, shared: &Shared) -> Result<()> {
+async fn handle_connection(
+    stream: TcpStream,
+    peer: SocketAddr,
+    shared: &Shared,
+    sniffer: Option<&Sniffer>,
+) -> Result<()> {
     let local = stream
         .local_addr()
         .unwrap_or_else(|_| SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)));
@@ -157,6 +184,9 @@ async fn handle_connection(stream: TcpStream, peer: SocketAddr, shared: &Shared)
     let mut ctx = SessionContext::new(shared.inbound_tag.clone(), Some(Address::from(peer)));
     ctx.target = Some(dest);
     ctx.network = Network::Tcp;
+
+    // 上游语义：入站协议握手完成后、路由之前执行嗅探。
+    let mut conn = sniff_and_apply(conn, sniffer, &mut ctx).await?;
     shared.dispatcher.dispatch(&mut ctx, &mut *conn).await
 }
 
